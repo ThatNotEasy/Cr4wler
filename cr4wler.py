@@ -27,7 +27,7 @@ def dirdar():
         os.mkdir('Results')
 
 def crawler():
-    os.system('clear' if os.name == 'posix' else 'cls')
+    clear()
     stdout.write("                                                                                            \n")
     stdout.write(""+Fore.LIGHTRED_EX +" ██████╗██████╗ ██╗  ██╗██╗    ██╗██╗     ███████╗██████╗              \n")
     stdout.write(""+Fore.LIGHTRED_EX +"██╔════╝██╔══██╗██║  ██║██║    ██║██║     ██╔════╝██╔══██╗             \n")
@@ -37,7 +37,9 @@ def crawler():
     stdout.write(""+Fore.LIGHTRED_EX +" ╚═════╝╚═╝  ╚═╝     ╚═╝ ╚══╝╚══╝ ╚══════╝╚══════╝╚═╝  ╚═╝             \n")
     stdout.write(""+Fore.YELLOW +"═════════════╦═════════════════════════════════╦══════════════════════════════\n")
     stdout.write(""+Fore.YELLOW   +"╔════════════╩═════════════════════════════════╩═════════════════════════════╗\n")
-    stdout.write(""+Fore.YELLOW   +"║ \x1b[38;2;255;20;147m• "+Fore.GREEN+"DESCRIPTION     "+Fore.RED+"    |"+Fore.LIGHTWHITE_EX+"   AUTOMATED WEB SCRAPPING & CRAWLER                "+Fore.YELLOW+"║\n")
+    stdout.write(""+Fore.YELLOW   +"║ \x1b[38;2;255;20;147m• "+Fore.GREEN+"Description     "+Fore.RED+"    |"+Fore.LIGHTWHITE_EX+"   AUTOMATED WEB SCRAPPING & CRAWLER                "+Fore.YELLOW+"║\n")
+    stdout.write(""+Fore.YELLOW   +"╔════════════════════════════════════════════════════════════════════════════╝\n")
+    stdout.write(""+Fore.YELLOW   +"║ \x1b[38;2;255;20;147m• "+Fore.GREEN+"Github     "+Fore.RED+"         |"+Fore.LIGHTWHITE_EX+"   github.com/whutw00t                              "+Fore.YELLOW+"║\n")
     stdout.write(""+Fore.YELLOW   +"╚════════════════════════════════════════════════════════════════════════════╝\n\n")
 crawler()
 
