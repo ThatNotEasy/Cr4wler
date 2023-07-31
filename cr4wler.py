@@ -1,20 +1,26 @@
 # Author: Pari Malam
 
-import requests
-from urllib.parse import urljoin
-import time
-import pprint
+import argparse
+import threading
+import random
 import os
+import time
+import sys
+from urllib.request import urlopen, Request, build_opener, HTTPRedirectHandler
+from urllib.error import HTTPError
+from html.parser import HTMLParser
+from urllib.parse import urljoin
 from sys import stdout
-from bs4 import BeautifulSoup
 from colorama import Fore, Style
-from concurrent.futures import ThreadPoolExecutor
 
 FY = Fore.YELLOW
 FG = Fore.GREEN
 FR = Fore.RED
 FW = Fore.WHITE
 FC = Fore.CYAN
+
+def clear():
+    os.system('clear' if os.name == 'posix' else 'cls')
 
 def dirdar():
     if not os.path.exists('Results'):
@@ -35,58 +41,114 @@ def crawler():
     stdout.write(""+Fore.YELLOW   +"╚════════════════════════════════════════════════════════════════════════════╝\n\n")
 crawler()
 
-while True:
-    inputURL = input(f"{Fore.YELLOW}[IP/URL]   : {Fore.GREEN}{Style.RESET_ALL}")
-    if not inputURL.startswith(("http://", "https://")):
-        inputURL = "https://" + inputURL
-    try:
-        requests.get(inputURL)
-        break
-    except requests.RequestException:
-        print(f"{Fore.RED}Please provide a valid URL." + Style.RESET_ALL)
 
-resultUrls = {
-    inputURL: False
-}
+sys.setrecursionlimit(1000)
 
-session = requests.Session()
+class LinkHTMLParser(HTMLParser):
+    A_TAG = "a"
+    HREF_ATTRIBUTE = "href"
 
+    def __init__(self):
+        self.links = []
+        super().__init__()
 
-def processOneUrl(url):
-    try:
-        response = session.get(url, allow_redirects=True)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.content, 'html.parser')
-        for link in soup.find_all('a', href=True):
-            fullurl = urljoin(url, link['href'])
-            if fullurl.startswith(inputURL) and fullurl not in resultUrls:
-                resultUrls[fullurl] = False
-        resultUrls[url] = True
-    except requests.RequestException:
-        resultUrls[url] = True
+    def handle_starttag(self, tag, attrs):
+        if tag == self.A_TAG:
+            for (key, value) in attrs:
+                if key == self.HREF_ATTRIBUTE:
+                    self.links.append(value)
+
+    def handle_endtag(self, tag):
+        pass
 
 
-def moreToCrawl():
-    for url, crawled in resultUrls.items():
-        if not crawled:
-            print(Fore.RED + f'[CR4WLING] : {Fore.GREEN}{url}' + Style.RESET_ALL)
-            return url
-    return False
+class CrawlerThread(threading.Thread):
+    binarySemaphore = threading.Semaphore(1)
 
+    def __init__(self, url, crawlDepth, output_file):
+        if not url.startswith(("http://", "https://")):
+            url = "http://" + url
+        self.url = url
+        self.crawlDepth = crawlDepth
+        self.threadId = hash(self)
+        self.request_interval = 2
+        self.user_agents = self.load_user_agents()
+        self.output_file = output_file
+        super().__init__()
 
-max_workers = 30
+    def load_user_agents(self):
+        with open("lib/ua.txt", "r") as file:
+            return [line.strip() for line in file.readlines()]
 
-print(f'{Fore.YELLOW}[STARTED]  : {Fore.GREEN}{time.ctime()}{Style.RESET_ALL}' + '\n')
+    def get_random_user_agent(self):
+        return random.choice(self.user_agents)
 
-with ThreadPoolExecutor(max_workers=max_workers) as executor:
-    while True:
-        toCrawl = moreToCrawl()
-        if not toCrawl:
-            break
-        executor.submit(processOneUrl, toCrawl)
-        time.sleep(2)
+    def is_excluded_domain(self, url):
+        excluded_domains = ["whatsapp.com", "twitter.com", "facebook.com", "youtube.com", "linkedin.com", "instagram.com"]
+        for domain in excluded_domains:
+            if domain in url:
+                return True
+        return False
 
-    executor.shutdown(wait=True)
+    def save_to_file(self, url):
+        dirdar()
+        with open(self.output_file, "a") as file:
+            file.write(url + "\n")
 
-print(f'{Fore.YELLOW}[COMPLETE]  : {time.ctime()}{Style.RESET_ALL}')
-pprint.pprint(resultUrls)
+    def run(self):
+        user_agent = self.get_random_user_agent()
+        headers = {'User-Agent': user_agent}
+        req = Request(self.url, headers=headers)
+        try:
+            opener = build_opener(HTTPRedirectHandler())
+            socket = opener.open(req, timeout=10)
+            urlMarkUp = socket.read().decode('utf-8')
+            linkHTMLParser = LinkHTMLParser()
+            linkHTMLParser.feed(urlMarkUp)
+            CrawlerThread.binarySemaphore.acquire()
+            print(f"{FY}[CR4WLER] - {FG}Thread: {FC}#{self.threadId} {FR}| {FW}Reading from {FC}{self.url}{Style.RESET_ALL}")
+            print(f"{FY}[CR4WLER] - {FG}Thread: {FC}#{self.threadId} {FR}| {FW}Crawl Depth = {FC}{self.crawlDepth}{Style.RESET_ALL}")
+            print(f"{FY}[CR4WLER] - {FG}Thread: {FC}#{self.threadId} {FR}| {FW}Retrieved the following links...{Style.RESET_ALL}")
+            urls = []
+            for link in linkHTMLParser.links:
+                link = urljoin(self.url, link)
+                if not self.is_excluded_domain(link):
+                    urls.append(link)
+                    print(f"{FY}[CR4WLER] - {FG}Thread: {FC}#{self.threadId} {FR}| {FG}[Found]: {FC}{link}{Style.RESET_ALL}")
+                    self.save_to_file(link)
+            print("")
+            CrawlerThread.binarySemaphore.release()
+            for url in urls:
+                if self.crawlDepth > 1:
+                    time.sleep(self.request_interval)
+                    CrawlerThread(url, self.crawlDepth - 1, self.output_file).start()
+        except HTTPError as e:
+            if e.code == 302:
+                redirected_url = e.headers.get("Location")
+                if redirected_url:
+                    CrawlerThread(redirected_url, self.crawlDepth, self.output_file).start()
+            else:
+                print(f"{FY}[CR4WLER] - {FG}Thread: {FC}#{self.threadId} {FR}| [Failed] - {FC}{self.url}{FR}: {Style.RESET_ALL}")
+        except Exception as e:
+            print(f"{FY}[CR4WLER] - {FG}Thread: {FC}#{self.threadId} {FR}| [Error] - {FC}{self.url}{FR}: {e}{Style.RESET_ALL}")
+
+def get_input_from_user():
+    parser = argparse.ArgumentParser(description="Web Crawler")
+    parser.add_argument("-u", "--url", required=True, help="URL to crawl")
+    parser.add_argument("-t", "--threads", type=int, default=1, help="Number of threads (default: 1)")
+    parser.add_argument("-o", "--output", default="Results/Cr4wler.txt", help="Output filename")
+    args = parser.parse_args()
+
+    if args.output == "Results/Cr4wler.txt":
+        args.output = os.path.join("Results", "Cr4wler.txt")
+
+    return args
+
+if __name__ == "__main__":
+    args = get_input_from_user()
+    output_file = args.output
+    url = args.url
+    num_threads = args.threads
+
+    for _ in range(num_threads):
+        CrawlerThread(url, crawlDepth=10, output_file=output_file).start()
